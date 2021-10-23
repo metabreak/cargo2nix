@@ -11,7 +11,9 @@ rec {
       inherit (buildPackages) runCommand jq remarshal;
       repo = builtins.fetchGit {
         inherit url rev ref;
+        
         fetchSubmodules = true;
+        submodules = true;
       };
     in
       /. + builtins.readFile (runCommand "find-crate-${name}-${version}"
