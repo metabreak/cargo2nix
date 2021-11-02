@@ -14,7 +14,7 @@ use cargo::{
         dependency::DepKind,
         resolver::{
             features::{ForceAllTargets, HasDevUnits},
-            Resolve, ResolveOpts,
+            CliFeatures, Resolve,
         },
         Package, PackageId, PackageIdSpec, Workspace,
     },
@@ -89,11 +89,13 @@ fn read_version_attribute(path: &Path) -> Result<Version> {
             }
             None
         })
-        .ok_or(anyhow!(
-            "valid {} not found in {}",
-            VERSION_ATTRIBUTE_NAME,
-            path.display()
-        ))
+        .ok_or_else(|| {
+            anyhow!(
+                "valid {} not found in {}",
+                VERSION_ATTRIBUTE_NAME,
+                path.display()
+            )
+        })
 }
 
 fn version_req(path: &Path) -> Result<(VersionReq, Version)> {
@@ -187,7 +189,7 @@ fn generate_cargo_nix(mut out: impl io::Write) -> Result<()> {
         &ws,
         &rtd,
         &[CompileKind::Host],
-        &ResolveOpts::everything(),
+        &CliFeatures::new_all(true),
         &specs,
         HasDevUnits::Yes,
         ForceAllTargets::Yes,
@@ -214,7 +216,7 @@ fn generate_cargo_nix(mut out: impl io::Write) -> Result<()> {
     for pkg in root_pkgs.iter() {
         let pkg_ws = Workspace::new(pkg.manifest_path(), &config)?;
         mark_required(pkg, &pkg_ws, &mut rpkgs_by_id)?;
-        for feature in all_features(&pkg) {
+        for feature in all_features(pkg) {
             activate(pkg, feature, &pkg_ws, &mut rpkgs_by_id)?;
         }
     }
@@ -306,12 +308,12 @@ fn mark_required(
     rpkgs_by_id: &mut BTreeMap<PackageId, ResolvedPackage>,
 ) -> Result<()> {
     let spec = PackageIdSpec::from_package_id(root_pkg.package_id());
-    let rtd = RustcTargetData::new(&ws, &[CompileKind::Host])?;
+    let rtd = RustcTargetData::new(ws, &[CompileKind::Host])?;
     let resolve = resolve_ws_with_opts(
         ws,
         &rtd,
         &[CompileKind::Host],
-        &ResolveOpts::new(true, &[], false, false),
+        &CliFeatures::new_all(true),
         &[spec],
         HasDevUnits::Yes,
         ForceAllTargets::Yes,
@@ -345,16 +347,16 @@ fn activate<'a>(
     rpkgs_by_id: &mut BTreeMap<PackageId, ResolvedPackage<'a>>,
 ) -> Result<()> {
     let spec = PackageIdSpec::from_package_id(pkg.package_id());
-    let (features, uses_default) = match feature {
-        "default" => (vec![], true),
-        other => (vec![other.to_string()], false),
-    };
-    let rtd = RustcTargetData::new(&ws, &[CompileKind::Host])?;
+    // let (features, uses_default) = match feature {
+    //     "default" => (vec![], true),
+    //     other => (vec![other.to_string()], false),
+    // };
+    let rtd = RustcTargetData::new(ws, &[CompileKind::Host])?;
     let resolve = resolve_ws_with_opts(
         ws,
         &rtd,
         &[CompileKind::Host],
-        &ResolveOpts::new(true, &features[..], false, uses_default),
+        &CliFeatures::new_all(true),
         &[spec],
         HasDevUnits::Yes,
         ForceAllTargets::Yes,

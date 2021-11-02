@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
-use cargo::core::{dependency::DepKind, Package, PackageId, SourceId, source::GitReference};
+use cargo::core::{dependency::DepKind, source::GitReference, Package, PackageId, SourceId};
 use serde::Serialize;
 
 use crate::manifest::TomlProfile;
@@ -90,10 +90,21 @@ pub struct Crate {
 
 #[derive(Debug, Serialize)]
 pub enum Source {
-    CratesIo { sha256: String },
-    Git { url: String, rev: String, branch: Option<String> },
-    Local { path: PathBuf },
-    Registry { index: String, sha256: String },
+    CratesIo {
+        sha256: String,
+    },
+    Git {
+        url: String,
+        rev: String,
+        branch: Option<String>,
+    },
+    Local {
+        path: PathBuf,
+    },
+    Registry {
+        index: String,
+        sha256: String,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -131,12 +142,10 @@ fn to_source(pkg: &ResolvedPackage<'_>, cwd: &Path) -> Result<Source> {
                 .checksum
                 .as_ref()
                 .map(|c| c.to_string())
-                .ok_or(anyhow!("checksum is required for crates.io package {}", id))?,
+                .ok_or_else(|| anyhow!("checksum is required for crates.io package {}", id))?,
         }
     } else if id.source_id().is_git() {
-        let branch = if let Some(GitReference::Branch(branch)) =
-            id.source_id().git_reference()
-        {
+        let branch = if let Some(GitReference::Branch(branch)) = id.source_id().git_reference() {
             Some(branch.to_owned())
         } else {
             None
@@ -147,7 +156,7 @@ fn to_source(pkg: &ResolvedPackage<'_>, cwd: &Path) -> Result<Source> {
                 .source_id()
                 .precise()
                 .map(|p| p.to_string())
-                .ok_or(anyhow!("precise ref not found for git package {}", id))?,
+                .ok_or_else(|| anyhow!("precise ref not found for git package {}", id))?,
             branch,
         }
     } else if id.source_id().is_path() {
@@ -160,15 +169,18 @@ fn to_source(pkg: &ResolvedPackage<'_>, cwd: &Path) -> Result<Source> {
                         p
                     }
                 })
-                .ok_or(anyhow!("path is not absolute for local package {}", id))?,
+                .ok_or_else(|| anyhow!("path is not absolute for local package {}", id))?,
         }
     } else if id.source_id().is_registry() {
         Source::Registry {
             index: id.source_id().url().to_string(),
-            sha256: pkg.checksum.as_ref().map(|c| c.to_string()).ok_or(anyhow!(
-                "checksum is required for alternate registry package {}",
-                id
-            ))?,
+            sha256: pkg
+                .checksum
+                .as_ref()
+                .map(|c| c.to_string())
+                .ok_or_else(|| {
+                    anyhow!("checksum is required for alternate registry package {}", id)
+                })?,
         }
     } else {
         return Err(anyhow!("unsupported source for {}", id));
@@ -228,7 +240,7 @@ fn to_dependencies(
             version: pkg_id.version().to_string(),
             registry: to_registry_string(pkg_id.source_id()),
             cfg_condition,
-            is_proc_macro: crate::is_proc_macro(&dep.pkg),
+            is_proc_macro: crate::is_proc_macro(dep.pkg),
         };
 
         match kind {

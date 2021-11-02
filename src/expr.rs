@@ -108,6 +108,7 @@ impl BoolExpr {
         DisplayFn(move |f: &mut fmt::Formatter| self.write_nix(f, Parent::PRoot))
     }
 
+    #[allow(clippy::unit_arg)]
     fn write_nix(&self, f: &mut fmt::Formatter, parent: Parent) -> fmt::Result {
         use self::BoolExpr::*;
         use self::Parent::*;
