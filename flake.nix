@@ -54,8 +54,17 @@
         #     Crates that check for CPU features such as the `aes` crate will be evaluated against this argument.
         rustPkgs = pkgs.rustBuilder.makePackageSet' {
           packageFun = import ./Cargo.nix;
-          rustChannel = "stable";
-          packageOverrides = pkgs: pkgs.rustBuilder.overrides.all;
+          rustChannel = "1.56.0";
+          packageOverrides = pkgs: pkgs.rustBuilder.overrides.all ++ [
+            (if pkgs.stdenv.hostPlatform.isDarwin then pkgs.rustBuilder.rustLib.makeOverride {
+                overrideAttrs = drv: {
+                    propagatedNativeBuildInputs = drv.propagatedNativeBuildInputs or [ ] ++ [
+                        pkgs.libiconv
+                        pkgs.darwin.apple_sdk.frameworks.Security
+                    ];
+                };
+            } else pkgs.rustBuilder.rustLib.nullOverride)
+          ];
           localPatterns = [ ''^(src|tests|templates)(/.*)?'' ''[^/]*\.(rs|toml)$'' ];
         };
 
